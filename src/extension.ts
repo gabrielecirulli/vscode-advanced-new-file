@@ -8,8 +8,6 @@ import * as gitignoreToGlob from 'gitignore-to-glob';
 import { sync as globSync } from 'glob';
 import * as Cache from 'vscode-cache';
 
-let cache;
-
 function isFolderDescriptor(filepath) {
   return filepath.charAt(filepath.length - 1) === path.sep;
 }
@@ -44,7 +42,7 @@ function gitignoreGlobs(root: string): string[] {
 function configIgnoredGlobs(): string[] {
   const configFilesExclude = Object.assign(
     [],
-    vscode.workspace.getConfiguration('adv-new-file').get('exclude'),
+    vscode.workspace.getConfiguration('advancedNewFile').get('exclude'),
     vscode.workspace.getConfiguration('files.exclude')
   );
   const configIgnored = Object.keys(configFilesExclude)
@@ -105,42 +103,30 @@ export function toQuickPickItems(choices: string[]): Promise<QuickPickItem[]> {
   }));
 }
 
-export function prependLastSelection(choices: QuickPickItem[]): Promise<QuickPickItem[]> {
-  if (cache.has('last')) {
-    const choice = {
-      label: cache.get('last') as string,
-      description: '- last selection'
+export function prependChoice(label: string, description: string): (choices: QuickPickItem[]) => QuickPickItem[] {
+  return function(choices) {
+    if (label) {
+      const choice = {
+        label: label,
+        description: description
+      }
+
+      choices.unshift(choice);
     }
 
-    choices.unshift(choice);
+    return choices;
   }
-
-  return Promise.resolve(choices);
 }
 
-export function prependWorkspaceRoot(choices: QuickPickItem[]): Promise<QuickPickItem[]> {
-  choices.unshift({
-    label: '/',
-    description: '- workspace root'
-  });
-
-  return Promise.resolve(choices);
-}
-
-export function prependCurrentEditorPath(choices: QuickPickItem[]): Promise<QuickPickItem[]> {
+export function currentEditorPath(): string {
   const activeEditor = vscode.window.activeTextEditor;
-  if (!activeEditor) return Promise.resolve(choices);
+  if (!activeEditor) return;
 
   const currentFilePath = path.dirname(activeEditor.document.fileName);
   const rootMatcher = new RegExp(`^${vscode.workspace.rootPath}`);
   const relativeCurrentFilePath = currentFilePath.replace(rootMatcher, '');
 
-  choices.unshift({
-    label: relativeCurrentFilePath,
-    description: '- relative to current file'
-  });
-
-  return Promise.resolve(choices);
+  return relativeCurrentFilePath;
 }
 
 export function createFileOrFolder(absolutePath: string): string {
@@ -180,9 +166,16 @@ export function guardNoSelection(selection?: string): PromiseLike<string> {
   return Promise.resolve(selection);
 }
 
-export function cacheSelection(selection: string): PromiseLike<string> {
-  cache.put('last', selection);
-  return Promise.resolve(selection);
+export function cacheSelection(cache: Cache): (selection: string) => PromiseLike<string> {
+  return function(selection: string) {
+    cache.put('last', selection);
+    return Promise.resolve(selection);
+  }
+}
+
+export function lastSelection(cache: Cache): string {
+  if (!cache.has('last')) return;
+  return cache.get('last') as string;
 }
 
 export function unwrapSelection(selection?: QuickPickItem): Promise<string> {
@@ -191,32 +184,31 @@ export function unwrapSelection(selection?: QuickPickItem): Promise<string> {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  cache = new Cache(context); // TODO: refactor to avoid global
-
   let disposable =
     vscode.commands.registerCommand('extension.advancedNewFile', () => {
-      let root = vscode.workspace.rootPath;
+      const root = vscode.workspace.rootPath;
 
       if (root) {
+        const cache = new Cache(context, `workspace:${root}`);
         const resolverArgsCount = 2;
         const resolveAbsolutePath = curry(path.join, resolverArgsCount)(root);
 
         const choices = directories(root)
           .then(toQuickPickItems)
-          .then(prependWorkspaceRoot)
-          .then(prependCurrentEditorPath)
-          .then(prependLastSelection);
+          .then(prependChoice('/', '- workspace root'))
+          .then(prependChoice(currentEditorPath(), '- current file'))
+          .then(prependChoice(lastSelection(cache), '- last selection'));
 
         return showQuickPick(choices)
           .then(unwrapSelection)
           .then(guardNoSelection)
-          .then(cacheSelection)
+          .then(cacheSelection(cache))
           .then(showInputBox)
           .then(guardNoSelection)
           .then(resolveAbsolutePath)
           .then(createFileOrFolder)
           .then(openFile)
-          .then(noop, noop);  // Silently handle rejections for now
+          .then(noop, noop); // Silently handle rejections for now
       } else {
         return vscode.window.showErrorMessage(
           'It doesn\'t look like you have a folder opened in your workspace. ' +

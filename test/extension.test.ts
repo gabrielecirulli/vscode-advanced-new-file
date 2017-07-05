@@ -66,11 +66,6 @@ describe('Advanced New File', () => {
       expect(result).not.to.include('/folder/file');
     });
 
-    it('includes its root (/) in the set', async () => {
-      let result = await advancedNewFile.directories(dummyProjectRoot);
-      expect(result).to.include('/');
-    });
-
     context('with a gitignore file', () => {
       const gitignoreFile = path.join(dummyProjectRoot, '.gitignore');
       before(() => {
@@ -117,11 +112,18 @@ describe('Advanced New File', () => {
       const advancedNewFile = proxyquire('../src/extension', {
         vscode: {
           workspace: {
-            getConfiguration() {
-              return {
-                'ignored/': true,
-                'folder/': false
-              };
+            getConfiguration(name) {
+              switch (name) {
+                case 'advancedNewFile':
+                  return {
+                    get: () => {}
+                  };
+                default:
+                  return {
+                    'ignored/': true,
+                    'folder/': false
+                  };
+              }
             }
           }
         }
@@ -335,11 +337,20 @@ describe('Advanced New File', () => {
           workspace: {
             rootPath: tmpDir,
             openTextDocument,
-            getConfiguration() { return {}; }
+            getConfiguration(name) {
+              switch (name) {
+                case 'advancedNewFile':
+                  return {
+                    get: () => {}
+                  };
+                default:
+                  return {};
+              }
+            }
           },
           window: {
             showErrorMessage,
-            showQuickPick: () => Promise.resolve('path/to'),
+            showQuickPick: () => Promise.resolve({ label: 'path/to' }),
             showInputBox: () => Promise.resolve('input/path/to/file.rb'),
             showTextDocument
           }
@@ -348,6 +359,11 @@ describe('Advanced New File', () => {
           statSync: () => {
             return { isDirectory: () => true };
           }
+        },
+        'vscode-cache': class Cache {
+          get() {}
+          has() { return false }
+          put() {}
         }
       });
 
@@ -386,11 +402,20 @@ describe('Advanced New File', () => {
           workspace: {
             rootPath: tmpDir,
             openTextDocument,
-            getConfiguration() { return {}; }
+            getConfiguration(name) {
+              switch (name) {
+                case 'advancedNewFile':
+                  return {
+                    get: () => {}
+                  };
+                default:
+                  return {};
+              }
+            }
           },
           window: {
             showErrorMessage,
-            showQuickPick: () => Promise.resolve('path/to'),
+            showQuickPick: () => Promise.resolve({ label: 'path/to' }),
             showInputBox: () => Promise.resolve('input/path/to/folder/'),
             showInformationMessage,
             showTextDocument
@@ -400,6 +425,11 @@ describe('Advanced New File', () => {
           statSync: () => {
             return { isDirectory: () => true };
           }
+        },
+        'vscode-cache': class Cache {
+          get() {}
+          has() { return false }
+          put() {}
         }
       });
 

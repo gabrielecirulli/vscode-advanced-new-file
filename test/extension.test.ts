@@ -317,6 +317,150 @@ describe('Advanced New File', () => {
     });
   });
 
+  describe('cacheSelection', () => {
+    it('returns a function that when called writes the value to cache', () => {
+      const cache = {
+        put: chai.spy()
+      }
+      const fn = advancedNewFile.cacheSelection(cache);
+      fn('/selection');
+
+      expect(cache.put).to.have.been.called.with('last', '/selection');
+    });
+
+    it('returns a function that returns the selection', () => {
+      const cache = {
+        put: () => true
+      }
+      const fn = advancedNewFile.cacheSelection(cache);
+
+      expect(fn('/selection')).to.eq('/selection');
+    });
+  });
+
+  describe('lastSelection', () => {
+    context('empty cache', () => {
+      it('is undefined', () => {
+        const cache = {
+          has: () => false
+        }
+        expect(advancedNewFile.lastSelection(cache)).to.be.undefined;
+      });
+    });
+
+    it('returns the cached last selection', () => {
+      const cache = {
+        has: () => true,
+        get: () => '/cached/value'
+      }
+      expect(advancedNewFile.lastSelection(cache)).to.eq('/cached/value');
+    });
+  });
+
+  describe('unwrapSelection', () => {
+    context('no QuickPickItem selected', () => {
+      it('is undefined', () => {
+        expect(advancedNewFile.unwrapSelection(null)).to.be.undefined;
+      });
+    });
+
+    it('returns the label of the selected QuickPickItem', () => {
+      const item: vscode.QuickPickItem = {
+        label: '/foo/bar',
+        description: 'something'
+      }
+
+      expect(advancedNewFile.unwrapSelection(item)).to.eq('/foo/bar');
+    });
+  });
+
+  describe('currentEditorPath', () => {
+    context('no active editor', () => {
+      it('is undefined', () => {
+        const advancedNewFile = proxyquire('../src/extension', {
+          vscode: {
+            window: {
+              activeTextEditor: undefined
+            }
+          }
+        });
+
+        expect(advancedNewFile.currentEditorPath()).to.be.undefined;
+      });
+    });
+
+    it('returns the relative path to file open in active editor', () => {
+      const editor = {
+        document: {
+          fileName: '/foo/bar/baz/bip/file.ts'
+        }
+      }
+
+      const advancedNewFile = proxyquire('../src/extension', {
+        vscode: {
+          window: {
+            activeTextEditor: editor
+          },
+          workspace: {
+            rootPath: '/foo/bar'
+          }
+        }
+      });
+
+      expect(advancedNewFile.currentEditorPath()).to.eq('/baz/bip');
+    });
+
+    it('does not remove workspace root matches in the middle of the path', () => {
+      const editor = {
+        document: {
+          fileName: '/foo/bar/baz/foo/bar/bip/file.ts'
+        }
+      }
+
+      const advancedNewFile = proxyquire('../src/extension', {
+        vscode: {
+          window: {
+            activeTextEditor: editor
+          },
+          workspace: {
+            rootPath: '/foo/bar'
+          }
+        }
+      });
+
+      expect(advancedNewFile.currentEditorPath()).to.eq('/baz/foo/bar/bip');
+    });
+  });
+
+  describe('prependChoice', () => {
+    it('returns a function that when called with a list of choices, adds a ' +
+       'choice with given label and description to the set', () => {
+
+      const fn = advancedNewFile.prependChoice('label', 'description');
+      let choices: vscode.QuickPickItem[] = [{
+        label: 'existing-label',
+        description: 'existing-description'
+      }];
+
+      expect(fn(choices)).to.include({
+        label: 'label',
+        description: 'description'
+      });
+    });
+
+    context('no label given', () => {
+      it('does not add a choice', () => {
+        const fn = advancedNewFile.prependChoice(null, 'description');
+        let choices: vscode.QuickPickItem[] = [{
+          label: 'existing-label',
+          description: 'existing-description'
+        }];
+
+        expect(fn(choices)).to.eq(choices);
+      })
+    });
+  });
+
   describe('command integration tests', () => {
     const tmpDir = path.join(__dirname, 'createFileOrFolder.tmp');
     beforeEach(() => fs.mkdirSync(tmpDir));

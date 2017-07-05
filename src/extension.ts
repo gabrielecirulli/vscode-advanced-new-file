@@ -62,11 +62,8 @@ function directoriesSync(root: string): string[] {
   return results;
 }
 
-interface QuickPickItem extends vscode.QuickPickItem {
-}
-
-export function showQuickPick(choices: Promise<QuickPickItem[]>) {
-  return vscode.window.showQuickPick<QuickPickItem>(choices, {
+export function showQuickPick(choices: Promise<vscode.QuickPickItem[]>) {
+  return vscode.window.showQuickPick<vscode.QuickPickItem>(choices, {
     placeHolder: 'First, select an existing path to create relative to ' +
     '(larger projects may take a moment to load)'
   });
@@ -82,6 +79,7 @@ export function showInputBox(baseDirectory: string) {
   }).then(resolveRelativePath);
 }
 
+// TODO: test the new config option
 export function directories(root: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const findDirectories = () => {
@@ -97,13 +95,13 @@ export function directories(root: string): Promise<string[]> {
   });
 }
 
-export function toQuickPickItems(choices: string[]): Promise<QuickPickItem[]> {
+export function toQuickPickItems(choices: string[]): Promise<vscode.QuickPickItem[]> {
   return Promise.resolve(choices.map((choice) => {
     return { label: choice, description: null };
   }));
 }
 
-export function prependChoice(label: string, description: string): (choices: QuickPickItem[]) => QuickPickItem[] {
+export function prependChoice(label: string, description: string): (choices: vscode.QuickPickItem[]) => vscode.QuickPickItem[] {
   return function(choices) {
     if (label) {
       const choice = {
@@ -166,10 +164,10 @@ export function guardNoSelection(selection?: string): PromiseLike<string> {
   return Promise.resolve(selection);
 }
 
-export function cacheSelection(cache: Cache): (selection: string) => PromiseLike<string> {
+export function cacheSelection(cache: Cache): (selection: string) => string {
   return function(selection: string) {
     cache.put('last', selection);
-    return Promise.resolve(selection);
+    return selection;
   }
 }
 
@@ -178,9 +176,9 @@ export function lastSelection(cache: Cache): string {
   return cache.get('last') as string;
 }
 
-export function unwrapSelection(selection?: QuickPickItem): Promise<string> {
-  if (!selection) return Promise.resolve(null);
-  return Promise.resolve(selection.label);
+export function unwrapSelection(selection?: vscode.QuickPickItem): string {
+  if (!selection) return;
+  return selection.label;
 }
 
 export function activate(context: vscode.ExtensionContext) {

@@ -139,6 +139,40 @@ describe('Advanced New File', () => {
         expect(result).to.include('/folder');
       });
     });
+
+    context('with vscode setting advancedNewFile.exclude', () => {
+      const advancedNewFile = proxyquire('../src/extension', {
+        vscode: {
+          workspace: {
+            getConfiguration(name) {
+              switch (name) {
+                case 'advancedNewFile':
+                  return {
+                    get: () => {
+                      return {
+                        'ignored/': true,
+                        'folder/': false
+                      };
+                    }
+                  };
+                default:
+                  return {};
+              }
+            }
+          }
+        }
+      });
+
+      it('does not include directories with a true value', async () => {
+        let result = await advancedNewFile.directories(dummyProjectRoot);
+        expect(result).not.to.include('/ignored');
+      });
+
+      it('includes directories with a false value', async () => {
+        let result = await advancedNewFile.directories(dummyProjectRoot);
+        expect(result).to.include('/folder');
+      });
+    });
   });
 
   describe('createFileOrFolder', () => {
